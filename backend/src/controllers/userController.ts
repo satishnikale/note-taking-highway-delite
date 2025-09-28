@@ -1,33 +1,45 @@
 const User = require("../models/userModel");
+const OTP = require("../models/OTPModel");
+import jwt = require("jsonwebtoken");
+const mailSender = require("../utils/mailSender");
+const otpTemplate = require("../utils/template");
 
-exports.signUp = async (req, res) => {
+
+// const MailerSend = require("@mailersend/mailersend");
+require("dotenv").config();
+
+import type { Request, Response } from "express";
+
+interface UserType {
+  name: string;
+  email: string;
+  dob: Date;
+  otp: string;
+}
+
+exports.signUp = async (req: Request, res: Response) => {
   try {
-    const { name, email, dob, otp } = req.body;
+    const { name, email, dob, otp }: UserType = req.body;
 
-    // validation of above password
+    // 1. Validate inputs
     if (!email || !dob || !name || !otp) {
       return res.status(403).json({
         success: false,
-        message: "All Field are Required",
+        message: "All fields are required",
       });
     }
 
-    // check email is already present or not
+    // 2. Check existing user
     const existingUser = await User.findOne({ email });
-
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: "User is already Registered , Please LoggedIN ",
+        message: "User already registered. Please log in.",
       });
     }
 
-    // find most resent OTP stored in user --> means DB
-
-    //const response = await OTP.find({ email }).sort({ createdAt: -1 });  // findOne()--> method gives an error
-    //const response = await OTP.find({ email }).sort({ createdAt: -1 }).limit(1);
-    const recentOtp = await .findOne({ email }).sort({ createdAt: -1 });
-
+    // 3. Get most recent OTP
+    const recentOtp = await OTP.findOne({ email }).sort({ createdAt: -1 });
     if (!recentOtp) {
       return res.status(400).json({
         success: false,
@@ -35,77 +47,149 @@ exports.signUp = async (req, res) => {
       });
     }
 
-    console.log("recent OTP in DB _----> ", recentOtp);
-
-    // OTP Expired
-
-    // Expiry check (5 minutes)
-    const now = Date.now();
-    if ((now - recentOtp.createdAt) / 1000 / 60 > 5) {
+    // 4. Verify OTP
+    if (otp !== recentOtp.otp) {
       return res.status(400).json({
         success: false,
-        message: "OTP expired, please request a new one",
+        message: "Invalid OTP , Enter a valid OTP ",
       });
     }
 
-    // Value check (convert both to strings to avoid type mismatch)
-    if (otp.toString() !== recentOtp.otp.toString()) {
-      return res.status(400).json({
-        success: false,
-        message: "The OTP is not valid",
-      });
-    }
+    // 5. Create user
+    const user = await User.create({ name, email, dob });
 
-    // Hash the Password
-    let hasshedPassword = await bcrypt.hash(password, 10);
+    // 6. Clear OTPs for this email
+    await OTP.deleteMany({ email });
 
-    // console.log("Password is hashed now ",hasshedPassword);
-
-    // Create the User
-    let approved = "";
-    accountType === "Instructor" ? (approved = false) : (approved = true);
-
-    // dB Madhe Entry Create karne ahe
-    // profile detail la pahile Db madhe entry creat keli --> karan aple additional detail chi _ID --> pass karaychi ahe na signup madhe
-
-    // Create the Additional Profile For User
-    const profileDetails = await Profile.create({
-      gender: null,
-      dateOfBirth: null,
-      about: null,
-      contactNumber: null,
-    });
-
-    // in Db profile detail is not showing whyy ?????????????????????????????????????????? --> Because of
-    // console.log("Profile details", profileDetails);
-
-    const user = await User.create({
-      firstName,
-      lastName,
-      email,
-      contactNumber,
-      password: hasshedPassword,
-      accountType,
-      approved: approved,
-      additionalDetails: profileDetails._id,
-      // additionalDetail :profileDetails._id, // yamdhe je profile detail ahe na tyachi id pass keli je profile Detail page
-      image: `https://api.dicebear.com/5.x/initials/svg?seed=${firstName} ${lastName}`,
-    });
-
-    // console.log("This Entry is Stored in DataBase",user);
-
-    // response succes send krar a
     return res.status(200).json({
       success: true,
-      message: "User is Registered Succesfully",
+      message: "User registered successfully",
       user,
+
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message:
-        "something went Wrong in SignUP !!  User cannot be Registerred , please try again ",
+      message: "Something went wrong in signup",
+      error,
+    });
+  }
+};
+
+exports.login = async (req: Request, res: Response) => {
+  try {
+    console.log("Hitting login route");
+    // 1. get email form body
+    const { email, otp } = req.body;
+
+    // 2. validation on email
+    if (!email || !otp) {
+      return res.status(403).json({
+        success: false,
+        message: "All fields are required ",
+      });
+    }
+    //3/ check user is present in db
+    const user = await User.findOne({ email });
+    console.log("getting user--->", user);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User is not found , Signup First",
+      });
+    }
+
+    //4. validate OTP
+    const recentOtp = await OTP.findOne({ email }).sort({ createdAt: -1 });
+
+    console.log("recent OTP");
+
+    if (otp !== recentOtp.otp) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP , Enter a valid OTP ",
+      });
+    }
+
+    // 5. create JWT
+    const payload = {
+      id: user._id,
+      email: email,
+    };
+
+    const JWT_SCERET: any = process.env.JWT_SCERET;
+    console.log("print JWT secret -->", JWT_SCERET);
+
+    const token = jwt.sign(payload, JWT_SCERET, { expiresIn: "3d" });
+
+    console.log("Pringitng the token --->", token);
+
+    //6. login sucesfully
+    return res.status(200).json({
+      success: true,
+      message: "User Logged in succesfully",
+      token,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      messaga: "Something went wrong while Login ",
+    });
+  }
+};
+
+exports.sendOTP = async (req: Request, res: Response) => {
+  try {
+    console.log("i am inside OTP sender ");
+    // 1. get email
+     const {email} = req.body;
+    //const email = "balajiborude2503@gmail.com";
+
+    console.log("jay nbaba ki emil--", email  );
+
+    // validation
+    if (!email) {
+      return res.status(403).json({
+        success: false,
+        message: "Enter a valid Email Addresss",
+      });
+    }
+    console.log("email from OTP ", email);
+
+    // 2. generate  OTP
+    let generateotp = Math.floor(1000 + Math.random() * 9000);
+    console.log(generateotp);
+
+    // 3. save OTP in Db
+    const saveOtp = await OTP.create({
+      otp: generateotp,
+      email,
+    });
+    console.log("OTP save in DB ");
+
+    console.log("email from otp ", email);
+    // send email
+    let result = await mailSender({
+      email,
+      title: "Verification Email from satish",
+      body: otpTemplate(generateotp),
+    });
+
+    console.log("after mail is send ");
+    console.log("response of mail", result);
+    console.log(`Mail send to email ${email} succesfully`);
+    // return res
+    return res.status(200).json({
+      success: true,
+      message: "OTP save in db  and email is send to User Succesfully",
+      otp: generateotp,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
       error: error,
+      message: "Issue in OTP Generation ",
     });
   }
 };
