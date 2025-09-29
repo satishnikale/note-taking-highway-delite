@@ -1,11 +1,8 @@
 const User = require("../models/userModel");
 const OTP = require("../models/OTPModel");
-import jwt = require("jsonwebtoken");
 const mailSender = require("../utils/mailSender");
 const otpTemplate = require("../utils/template");
-
-
-// const MailerSend = require("@mailersend/mailersend");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 import type { Request, Response } from "express";
@@ -65,7 +62,6 @@ exports.signUp = async (req: Request, res: Response) => {
       success: true,
       message: "User registered successfully",
       user,
-
     });
   } catch (error) {
     return res.status(500).json({
@@ -78,10 +74,8 @@ exports.signUp = async (req: Request, res: Response) => {
 
 exports.login = async (req: Request, res: Response) => {
   try {
-    console.log("Hitting login route");
     // 1. get email form body
     const { email, otp } = req.body;
-
     // 2. validation on email
     if (!email || !otp) {
       return res.status(403).json({
@@ -89,21 +83,18 @@ exports.login = async (req: Request, res: Response) => {
         message: "All fields are required ",
       });
     }
-    //3/ check user is present in db
+    //3 check user is present in db
     const user = await User.findOne({ email });
-    console.log("getting user--->", user);
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User is not found , Signup First",
+        message: "User is not found, Signup First",
       });
     }
 
     //4. validate OTP
     const recentOtp = await OTP.findOne({ email }).sort({ createdAt: -1 });
-
-    console.log("recent OTP");
 
     if (otp !== recentOtp.otp) {
       return res.status(400).json({
@@ -119,11 +110,8 @@ exports.login = async (req: Request, res: Response) => {
     };
 
     const JWT_SCERET: any = process.env.JWT_SCERET;
-    console.log("print JWT secret -->", JWT_SCERET);
 
     const token = jwt.sign(payload, JWT_SCERET, { expiresIn: "3d" });
-
-    console.log("Pringitng the token --->", token);
 
     //6. login sucesfully
     return res.status(200).json({
@@ -141,13 +129,8 @@ exports.login = async (req: Request, res: Response) => {
 
 exports.sendOTP = async (req: Request, res: Response) => {
   try {
-    console.log("i am inside OTP sender ");
     // 1. get email
-     const {email} = req.body;
-    //const email = "balajiborude2503@gmail.com";
-
-    console.log("jay nbaba ki emil--", email  );
-
+    const { email } = req.body;
     // validation
     if (!email) {
       return res.status(403).json({
@@ -155,8 +138,6 @@ exports.sendOTP = async (req: Request, res: Response) => {
         message: "Enter a valid Email Addresss",
       });
     }
-    console.log("email from OTP ", email);
-
     // 2. generate  OTP
     let generateotp = Math.floor(1000 + Math.random() * 9000);
     console.log(generateotp);
@@ -166,19 +147,12 @@ exports.sendOTP = async (req: Request, res: Response) => {
       otp: generateotp,
       email,
     });
-    console.log("OTP save in DB ");
-
-    console.log("email from otp ", email);
     // send email
     let result = await mailSender({
       email,
       title: "Verification Email from satish",
       body: otpTemplate(generateotp),
     });
-
-    console.log("after mail is send ");
-    console.log("response of mail", result);
-    console.log(`Mail send to email ${email} succesfully`);
     // return res
     return res.status(200).json({
       success: true,

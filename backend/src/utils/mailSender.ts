@@ -4,9 +4,11 @@ const nodemailer = require("nodemailer");
 require("dotenv").config();
 
  
-const mailSender =async ({email,title,body}:any)=>{
+const mailSender = async ({ email, title, body }: { email: string; title: string; body: string }) => { 
     try {
-     
+        
+  
+          
         console.log("MAIL_USER:", process.env.MAIL_USER);
         console.log("MAIL_PASS:", process.env.MAIL_PASS);
         
@@ -36,3 +38,4 @@ const mailSender =async ({email,title,body}:any)=>{
         
     }
 }
+module.exports = mailSender;
