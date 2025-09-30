@@ -5,7 +5,7 @@
 
 1. **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/note-taking-highway-delite.git
+    git clone https://github.com/satishnikale/note-taking-highway-delite.git
     cd note-taking-highway-delite
     ```
 
